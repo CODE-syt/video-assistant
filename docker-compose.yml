@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      MONGO_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
+      TRUST_PROXY: "1"
+    depends_on: [mongo]
+    restart: unless-stopped
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes: [mongo_data:/data/db]
+    restart: unless-stopped
+  caddy:
+    image: caddy:2
+    command: caddy reverse-proxy --from ${DOMAIN} --to app:8000
+    ports: ["80:80", "443:443"]
+    volumes: [caddy_data:/data]
+    depends_on: [app]
+    restart: unless-stopped
+volumes:
+  mongo_data:
+  caddy_data:

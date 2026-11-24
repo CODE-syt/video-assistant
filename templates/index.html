@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Assistant</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1c2430;--mute:#5b6675;--line:#dfe3e9;--accent:#2456e5;--accent-ink:#fff;--tc:#b45f06;--err:#b3261e;--ok:#1b7a43;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#161a20;--card:#1f242c;--ink:#e8ebf0;--mute:#9aa4b2;--line:#323a46;--accent:#6b8cff;--accent-ink:#0f1420;--tc:#f0a94b;--err:#ff8a80;--ok:#6fd39a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+aside{border-right:1px solid var(--line);background:var(--card);padding:20px;display:flex;flex-direction:column;gap:20px}
+.brand{font-weight:700;font-size:1.15rem;display:flex;gap:10px;align-items:center}
+.brand i{width:26px;height:18px;border:2px solid var(--accent);border-radius:4px;position:relative}
+.brand i::after{content:"";position:absolute;left:8px;top:2px;border:5px solid transparent;border-left:8px solid var(--accent)}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 14px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.5;cursor:not-allowed}
+.status{font-size:.85rem;color:var(--mute);margin-top:auto}.status button{padding:3px 8px;font-size:.8rem}
+nav#hist{display:grid;gap:4px;overflow-y:auto;align-content:start}nav#hist button{text-align:left;padding:7px 10px;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status b{color:var(--ok)}.status b.bad{color:var(--err)}
+main{padding:24px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-content:start}
+section{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+h1,h2{margin:0 0 12px;font-size:1.05rem}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:40px 16px;text-align:center;color:var(--mute);cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.drop strong{display:block;color:var(--ink);font-size:1.05rem;margin-bottom:4px}
+video{width:100%;border-radius:8px;background:#000;max-height:46vh}
+.meta{display:flex;justify-content:space-between;gap:8px;margin:10px 0;color:var(--mute);font-size:.9rem}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px}
+.bar>div{height:100%;width:0;background:var(--accent);transition:width .2s}
+.bar.indet>div{width:40%;animation:slide 1.2s ease-in-out infinite alternate}
+@keyframes slide{to{margin-left:60%}}
+.film{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-top:12px}
+.film figure{margin:0;flex:0 0 120px}
+.film img{width:120px;height:72px;object-fit:cover;border-radius:6px;display:block;cursor:pointer;border:1px solid var(--line)}
+.film figcaption{font:600 .78rem ui-monospace,Menlo,monospace;color:var(--tc);margin-top:3px}
+.chat{display:flex;flex-direction:column;height:calc(100vh - 48px);max-height:760px}
+.log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.msg{padding:10px 14px;border-radius:12px;max-width:92%;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}
+.msg.ai{align-self:flex-start;background:var(--bg);border:1px solid var(--line)}
+.empty{margin:auto;text-align:center;color:var(--mute);max-width:280px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chips button{font-size:.85rem;padding:5px 10px;border-radius:99px}
+form{display:flex;gap:8px}
+input[type=text]{flex:1;font:inherit;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-width:0}
+.dots span{display:inline-block;width:6px;height:6px;margin-right:3px;border-radius:50%;background:var(--mute);animation:b 1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes b{50%{opacity:.25}}
+#toasts{position:fixed;right:16px;bottom:16px;display:grid;gap:8px;z-index:10}
+.toast{background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;max-width:340px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.toast.err{background:var(--err);color:#fff}
+[hidden]{display:none!important}
+@media(max-width:900px){body{grid-template-columns:1fr}nav#hist{display:flex;order:3;width:100%;overflow-x:auto}nav#hist button{flex:0 0 auto;max-width:200px}aside{flex-direction:row;flex-wrap:wrap;align-items:center;border-right:0;border-bottom:1px solid var(--line);padding:12px 16px}.status{margin:0 0 0 auto}main{grid-template-columns:1fr;padding:14px}.chat{height:70vh}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><i></i>Video Assistant</div>
+  <button id="newBtn" class="primary">New video</button>
+  <nav id="hist" aria-label="Past videos"></nav>
+  <div class="status"><span>{{ email }}</span> <button id="out" type="button">Sign out</button><br>AI service: {% if configured %}<b>ready</b>{% else %}<b class="bad">API key missing</b>{% endif %}</div>
+</aside>
+<main>
+  <section aria-labelledby="h-video">
+    <h1 id="h-video">Video</h1>
+    <div id="drop" class="drop" tabindex="0" role="button" aria-label="Choose a video to upload">
+      <strong>Drop a video here or click to browse</strong>
+      MP4, MOV, AVI, MKV or WebM, up to {{ max_mb }} MB
+      <input id="file" type="file" accept="video/*,.mkv" hidden>
+    </div>
+    <div id="preview" hidden>
+      <video id="player" controls></video>
+      <div class="meta"><span id="fname"></span><span id="fmeta"></span></div>
+      <button id="del" type="button" hidden>Delete this analysis</button>
+      <div id="progress" hidden><span id="pText">Uploading…</span><div class="bar" id="bar"><div id="fill"></div></div></div>
+      <div id="filmWrap" hidden><h2>Frames the AI analyzed</h2><div class="film" id="film"></div></div>
+    </div>
+  </section>
+  <section class="chat" aria-labelledby="h-chat">
+    <h2 id="h-chat">Analysis and chat</h2>
+    <div class="log" id="log" aria-live="polite"><div class="empty" id="empty">Upload a video to get a summary, then ask questions about what happens in it.</div></div>
+    <div class="chips" id="chips" hidden>
+      <button type="button">List the key moments</button><button type="button">Who or what appears?</button><button type="button">What is being said or shown as text?</button>
+    </div>
+    <form id="form"><input id="q" type="text" maxlength="2000" placeholder="Ask about the video" aria-label="Question" disabled><button class="primary" id="send" disabled>Send</button></form>
+  </section>
+</main>
+<div id="toasts" role="status"></div>
+<script>
+const $=id=>document.getElementById(id);
+const MAX={{ max_mb }}*1024*1024;let sid=null;
+async function api(url,opt={}){const r=await fetch(url,{...opt,headers:{'X-Requested-With':'fetch',...(opt.body?{'Content-Type':'application/json'}:{})}});
+  if(r.status===401){location='/login';throw new Error('Signed out.')}
+  let d={};try{d=await r.json()}catch{}
+  if(!r.ok)throw new Error(d.error||'Request failed.');return d}
+function toast(m,err){const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=m;$('toasts').append(t);setTimeout(()=>t.remove(),5000)}
+function add(cls,text){$('empty')?.remove();const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;$('log').append(d);$('log').scrollTop=1e9;return d}
+function typing(){const d=add('ai','');d.innerHTML='<span class="dots"><span></span><span></span><span></span></span>';return d}
+function lock(on){$('q').disabled=$('send').disabled=on}
+function ready(){$('chips').hidden=false;$('del').hidden=false;lock(false);$('q').focus()}
+function showFrames(frames){$('film').replaceChildren();frames.forEach(fr=>{const g=document.createElement('figure'),i=new Image();i.src=fr.src;i.alt='Frame at '+fr.t+' seconds';
+  i.onclick=()=>{if(!$('player').hidden){$('player').currentTime=fr.t;$('player').play()}};
+  const c=document.createElement('figcaption');c.textContent=fr.t+'s';g.append(i,c);$('film').append(g)});$('filmWrap').hidden=false}
+async function loadHist(){try{const l=await api('/api/sessions');$('hist').replaceChildren(...l.map(s=>{const b=document.createElement('button');
+  b.textContent=s.title;b.title=new Date(s.created_at).toLocaleString();b.onclick=()=>openSession(s.id);return b}))}catch{}}
+async function openSession(id){try{const d=await api('/api/sessions/'+id);sid=id;$('log').replaceChildren();
+  $('drop').hidden=true;$('preview').hidden=false;$('player').hidden=true;$('progress').hidden=true;
+  $('fname').textContent=d.title;$('fmeta').textContent=d.duration+' s';showFrames(d.frames);
+  d.messages.forEach(m=>add(m.role==='user'?'user':'ai',m.content));ready()}catch(e){toast(e.message,1)}}
+$('del').onclick=async()=>{if(!sid||!confirm('Delete this analysis and its chat?'))return;
+  try{await api('/api/sessions/'+sid,{method:'DELETE'});location.reload()}catch(e){toast(e.message,1)}};
+$('out').onclick=async()=>{try{await api('/api/logout',{method:'POST'})}catch{}location='/login'};
+$('drop').onclick=()=>$('file').click();
+$('drop').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('file').click()}};
+['dragover','dragenter'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('over')}));
+['dragleave','drop'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('over')}));
+$('drop').addEventListener('drop',e=>pick(e.dataTransfer.files[0]));
+$('file').onchange=e=>pick(e.target.files[0]);
+$('newBtn').onclick=()=>location.reload();
+function pick(f){
+  if(!f)return;
+  if(!/\.(mp4|mov|avi|mkv|webm)$/i.test(f.name))return toast('Unsupported format. Use MP4, MOV, AVI, MKV or WebM.',1);
+  if(f.size>MAX)return toast('File is too large. The limit is {{ max_mb }} MB.',1);
+  $('player').hidden=false;$('player').src=URL.createObjectURL(f);$('fname').textContent=f.name;$('fmeta').textContent=(f.size/1048576).toFixed(1)+' MB';
+  $('drop').hidden=true;$('preview').hidden=false;upload(f);
+}
+function upload(f){
+  const fd=new FormData();fd.append('video',f);
+  $('progress').hidden=false;$('bar').classList.remove('indet');$('fill').style.width='0';$('pText').textContent='Uploading…';
+  const wait=typing(),x=new XMLHttpRequest();x.open('POST','/api/upload');x.setRequestHeader('X-Requested-With','fetch');
+  x.upload.onprogress=e=>{if(e.lengthComputable){$('fill').style.width=(e.loaded/e.total*100)+'%';if(e.loaded===e.total){$('bar').classList.add('indet');$('pText').textContent='Extracting frames and analyzing…'}}};
+  x.onload=()=>{wait.remove();$('progress').hidden=true;let r={};try{r=JSON.parse(x.responseText)}catch{}
+    if(x.status===401)return location='/login';
+    if(x.status!==200)return fail(r.error||'Upload failed.');
+    sid=r.session_id;$('fmeta').textContent+=' · '+r.duration+' s';showFrames(r.frames);add('ai',r.summary);ready();loadHist()};
+  x.onerror=()=>{wait.remove();fail('Network error. Check that the server is running.')};
+  x.send(fd);
+}
+function fail(m){$('progress').hidden=true;toast(m,1);add('ai','Could not analyze the video: '+m+' Choose New video to try again.')}
+async function ask(text){
+  add('user',text);lock(true);const w=typing();
+  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({session_id:sid,message:text})});w.remove();add('ai',r.answer)}
+  catch(e){w.remove();toast(e.message,1);add('ai',e.message)}
+  lock(false);$('q').focus();
+}
+$('form').onsubmit=e=>{e.preventDefault();const t=$('q').value.trim();if(t&&sid){$('q').value='';ask(t)}};
+$('chips').onclick=e=>{if(e.target.tagName==='BUTTON'&&sid)ask(e.target.textContent)};
+loadHist();
+</script>
+</body>
+</html>
